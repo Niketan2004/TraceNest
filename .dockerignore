@@ -1,0 +1,40 @@
+# ==============================================================================
+# TraceNest Master .dockerignore
+# ==============================================================================
+
+# Version Control
+.git/
+.github/
+
+# IDEs & Editor metadata
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Environment variables & secrets (NEVER bake into images)
+**/.env
+**/.env.*
+.env
+.env.*
+
+# Datasets & large testing data
+datasets/
+
+# Build artifacts
+**/target/
+**/node_modules/
+**/.output/
+**/.nitro/
+**/.vinxi/
+**/.tanstack/
+**/dist/
+**/dist-ssr/
+
+# Logs & temp files
+*.log
+logs/
+*.pdf
+*.tmp
+*.temp

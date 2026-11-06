@@ -1,0 +1,10 @@
+target/
+.git/
+.gitignore
+.idea/
+.vscode/
+*.log
+logs/
+.env
+.env.*
+.env.local

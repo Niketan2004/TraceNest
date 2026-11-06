@@ -1,0 +1,106 @@
+# ==============================================================================
+# TraceNest Unified Docker Compose Orchestration
+# Run full stack (Database + Backend + Frontend) with:
+#   docker-compose up --build
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. PostgreSQL Database Service
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: tracenest-db
+    restart: unless-stopped
+    env_file:
+      - path: ./TraceNest-Backend/.env
+        required: false
+    environment:
+      POSTGRES_DB: tracenest
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - tracenest-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-tracenest}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - tracenest-network
+
+  # ----------------------------------------------------------------------------
+  # 2. Spring Boot 3.4 & Java 21 Backend REST API
+  # ----------------------------------------------------------------------------
+  backend:
+    container_name: tracenest-backend
+    build:
+      context: ./TraceNest-Backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: ./TraceNest-Backend/.env
+        required: false
+    environment:
+      PORT: 8080
+      # Override DB host for docker bridge network
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/tracenest
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-VGhpcyBpcyBhIHZlcnkgc2VjdXJlIHNlY3JldCBrZXkgZm9yIEpXVA==}
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_CORS: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || curl -f http://localhost:8080/api/v1/reports || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      - tracenest-network
+
+  # ----------------------------------------------------------------------------
+  # 3. React 19 & TanStack Frontend Application
+  # ----------------------------------------------------------------------------
+  frontend:
+    container_name: tracenest-frontend
+    build:
+      context: ./TraceNet-Frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    env_file:
+      - path: ./TraceNet-Frontend/.env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5173
+      INTERNAL_API_URL: http://backend:8080/api/v1
+    networks:
+      - tracenest-network
+
+# ------------------------------------------------------------------------------
+# Persistent Data Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  tracenest-db-data:
+    driver: local
+
+# ------------------------------------------------------------------------------
+# Bridge Network for Inter-Container Communication
+# ------------------------------------------------------------------------------
+networks:
+  tracenest-network:
+    driver: bridge
